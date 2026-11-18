@@ -4,8 +4,8 @@
 // is bot-gated, and its CORS behaviour is unknown.
 // Primary: FAA NOTAM Search (notams.aim.faa.gov), no key.
 // Fallback: CheckWX (api.checkwx.com), free tier, needs CHECKWX_API_KEY
-// (Vercel env var). The FAA source returned 403 to direct requests and
-// also failed from Vercel, so the fallback is what serves live traffic.
+// (Vercel env var). CheckWX is Version 2: the path MUST be
+// https://api.checkwx.com/v2/notam/<ICAO> — the unversioned path 404s.
 function cors(res) {
   res.setHeader('Access-Control-Allow-Origin', '*');
   res.setHeader('Access-Control-Allow-Headers', 'authorization, content-type');
@@ -45,7 +45,7 @@ async function fetchCheckwx(icao) {
   const ctrl = new AbortController();
   const t = setTimeout(() => ctrl.abort(), 12000);
   try {
-    const r = await fetch('https://api.checkwx.com/notam/' + encodeURIComponent(icao), {
+    const r = await fetch('https://api.checkwx.com/v2/notam/' + encodeURIComponent(icao), {
       headers: { 'X-API-Key': key, 'Accept': 'application/json' },
       signal: ctrl.signal
     });
@@ -53,7 +53,7 @@ async function fetchCheckwx(icao) {
     const data = await r.json();
     const list = Array.isArray(data.data) ? data.data : [];
     return list.map((item) => {
-      const text = typeof item === 'string' ? item : (item.raw || item.text || '');
+      const text = typeof item === 'string' ? item : (item.raw || item.raw_text || item.text || item.notam || '');
       const m = text.match(/^\S+\s+(\d{2}\/\d{3})\b/);
       return { id: null, number: m ? m[1] : null, text, type: null, start: null, end: null, location: icao };
     }).filter((n) => n.text);
